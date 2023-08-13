@@ -1,0 +1,12 @@
+#container {
+    margin: auto;
+  }
+#tooltip {
+    background-color: #fae7f2;
+    font-size: 0.8em;
+    padding: 10px;
+    border-radius: 10px;
+}
+.cell:hover {
+    fill: blue;
+}
