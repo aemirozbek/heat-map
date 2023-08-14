@@ -1,12 +1,13 @@
 #container {
-    margin: auto;
+    display: flex;
+    justify-content: center;
   }
 #tooltip {
     background-color: #fae7f2;
-    font-size: 0.8em;
+    font-size: 1.2em;
     padding: 10px;
     border-radius: 10px;
 }
 .cell:hover {
-    fill: blue;
+    outline: 2px solid rgb(0, 0, 0);
 }

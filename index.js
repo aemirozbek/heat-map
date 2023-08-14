@@ -9,19 +9,21 @@ const marginBottom = 60;
 const marginSides = 60;
 const legendWidth = 400;
 
-const heatmapColors = {
-  0: "#0000FF", // Blue
-  1: "#1E46A0",
-  2: "#3C7E7F",
-  3: "#5ABD5B",
-  4: "#79FC38",
-  5: "#9BF91A", // Yellow
-  6: "#B8D300",
-  7: "#D59B00",
-  8: "#F27400",
-  9: "#FF4200",
-  10: "#FF0000", // Red
-};
+const heatmapColors = [
+  "#000000",
+  "#230055",
+  "#460099",
+  "#6A00BB",
+  "#9B4CBB",
+  "#B05AB5",
+  "#C96BA6",
+  "#ED7F90",
+  "#FF9977",
+  "#FFB055",
+  "#FFD033",
+  "#FFEA11",
+  "#FFFEE8",
+];
 
 fetch(url)
   .then((res) => res.json())
@@ -32,16 +34,25 @@ fetch(url)
     const baseTemp = data.baseTemperature;
     const variance = dataset.map((e) => e.variance);
     const years = dataset.map((e) => new Date(e.year, 0));
-    const yearsAmount = yearsAmountFinder(years);
-    let months = [];
-    for (let i = 0; i < 12; i++) {
-      months.push(i);
-    }
 
-    function yearsAmountFinder(input) {
+    const yearsAmount = (function yearsAmountFinder(input) {
       let arr = input.map((e) => e.getFullYear());
       arr = new Set(arr);
       return arr.size;
+    })(years);
+
+    const tempRange = (function tempRangeFinder(input) {
+      input.sort((a, b) => a - b);
+      return {
+        min: input[0] + baseTemp,
+        max: input[input.length - 1] + baseTemp,
+        range: input[input.length - 1] - input[0],
+      };
+    })(variance);
+
+    let months = [];
+    for (let i = 0; i < 12; i++) {
+      months.push(i);
     }
 
     const xScale = d3
@@ -51,7 +62,7 @@ fetch(url)
 
     const yScale = d3
       .scaleBand()
-      .domain([11,10,9,8,7,6,5,4,3,2,1,0])
+      .domain([11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0])
       .range([h - marginBottom, marginTop]);
 
     const svg = d3
@@ -66,7 +77,13 @@ fetch(url)
       .attr("id", "tooltip")
       .style("opacity", 0)
       .style("position", "absolute")
-      .style("pointer-events", "none");
+      .style("pointer-events", "none")
+      .style("text-align", "center");
+
+    const colorScale = d3
+      .scaleLinear()
+      .domain([tempRange.min, tempRange.max])
+      .range([0, heatmapColors.length - 1]);
 
     const rects = svg
       .selectAll("rect")
@@ -79,15 +96,23 @@ fetch(url)
       .attr("data-temp", (d) => d.variance + data.baseTemperature)
       .attr("x", (d) => xScale(new Date(d.year + "-1")))
       .attr("y", (d) => yScale(d.month - 1))
-      .attr("width", (w - 2 * marginSides) / yearsAmount)
+      .attr("width", w / yearsAmount)
       .attr("height", (h - marginTop - marginBottom) / months.length)
-      .attr("fill", "red");
+      .attr(
+        "fill",
+        (d) => heatmapColors[Math.round(colorScale(d.variance + baseTemp))]
+      );
 
     svg
       .append("g")
       .attr("transform", "translate(0, " + (h - marginBottom) + ")")
       .attr("id", "x-axis")
-      .call(d3.axisBottom(xScale).tickFormat(formatYear));
+      .call(
+        d3
+          .axisBottom(xScale)
+          .tickFormat(formatYear)
+          .ticks(d3.timeYear.every(10))
+      );
 
     svg
       .append("g")
@@ -123,18 +148,38 @@ fetch(url)
       .attr("text-anchor", "middle")
       .text("Months");
 
+    const legendXScale = d3
+      .scaleLinear()
+      .domain([tempRange.min - 1, tempRange.max + 1])
+      .range([0, legendWidth]);
+
+    const legendRectScale = d3
+      .scaleLinear()
+      .domain([0, heatmapColors.length - 1])
+      .range([28, legendWidth - 28]);
+
     const legendBox = svg.append("g").attr("id", "legend");
 
-    const legendX = d3
-      .scaleLinear()
-      .domain([d3.min(variance) + baseTemp, d3.max(variance) + baseTemp])
-      .range([marginSides, legendWidth]);
+    const barSize = (legendWidth - 56) / heatmapColors.length;
 
     legendBox
       .append("g")
-      .attr("transform", "translate(0, " + (h + 30) + ")")
-      .attr("id", "legend-x")
-      .call(d3.axisBottom(legendX));
+      .attr("transform", "translate(100, " + (h + barSize) + ")")
+      .call(d3.axisBottom(legendXScale).tickArguments([12]));
+
+    legendBox
+      .selectAll("rect")
+      .data(heatmapColors)
+      .enter()
+      .append("rect")
+      .attr("x", (d, i) => legendRectScale(i) - barSize / 2 + 100) // The 100 is for the x axis transform match
+      .attr("y", h)
+      .attr("width", barSize)
+      .attr("height", barSize)
+      .attr("fill", (d, i) => heatmapColors[i])
+      .style("outline", "solid black 1px")
+      .append("title")
+      .text((d, i) => legendRectScale(i));
 
     rects.on("mouseover", (event, d) => {
       const monthNames = [
@@ -161,7 +206,7 @@ fetch(url)
         )
         .style("left", event.pageX + 15 + "px")
         .style("top", event.pageY + "px")
-        .attr("data-year", d.Year);
+        .attr("data-year", d.year);
     });
 
     rects.on("mouseout", () => {
